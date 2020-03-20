@@ -17,7 +17,8 @@ from linebot.exceptions import (
 )
 
 from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage, ImageMessage, VideoMessage, FileMessage, StickerMessage, StickerSendMessage
+    MessageEvent, TextMessage, TextSendMessage, ImageMessage, VideoMessage, 
+    FileMessage, StickerMessage, StickerSendMessage, ImageSendMessage
 )
 from linebot.utils import PY3
 
@@ -110,7 +111,10 @@ def handle_StickerMessage(event):
 def handle_ImageMessage(event):
     line_bot_api.reply_message(
 	event.reply_token,
-	TextSendMessage(text="Nice image!")
+	ImageSendMessage(
+        original_content_url="https://maps.googleapis.com/maps/api/staticmap?center=Hong+Kong%20&zoom13&size=600x300&maptype=roadmap%20&markers=color:blue%7Clabel:S%7cKellett%20View%20Town%20Houses,%2065%20Mount%20Kellett%20Road%20&markers=color:red%7Clabel:M%7cIsland%20Shangri-La%20&markers=color:green%7Clabel:E%7cEmerald%20Garden,%2086%20Pok%20Fu%20Lam%20Road%20&key=AIzaSyC4PPIxkv1lR7oQDqPNEVbhWwh_SlRAWPU",
+        preview_image_url="https://maps.googleapis.com/maps/api/staticmap?center=Hong+Kong%20&zoom13&size=600x300&maptype=roadmap%20&markers=color:blue%7Clabel:S%7cKellett%20View%20Town%20Houses,%2065%20Mount%20Kellett%20Road%20&markers=color:red%7Clabel:M%7cIsland%20Shangri-La%20&markers=color:green%7Clabel:E%7cEmerald%20Garden,%2086%20Pok%20Fu%20Lam%20Road%20&key=AIzaSyC4PPIxkv1lR7oQDqPNEVbhWwh_SlRAWPU"
+        )
     )
 
 # Handler function for Video Message
