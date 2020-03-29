@@ -44,7 +44,7 @@ if channel_access_token is None:
 line_bot_api = LineBotApi(channel_access_token)
 parser = WebhookParser(channel_secret)
 
-global redis1, result
+global redis1
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -140,19 +140,31 @@ def ConnectToRedis():
 
 # Return the number of confirmed case based on the province name 
 def FindWorldConfirmedCase(redis1, provinceName):
-	global result
+	#global result
 	content = json.loads(redis1.get('World'))
+	result = "nothing"
 
 	for item in content['newslist']:
-		if item['provinceName'] == provinceName:
+		if item['provinceName'] in provinceName :
 			result = str(item['confirmedCount'])
 			break
-	result = provinceName + '的确诊人数: "'+ result +'"'
-	return result
+		elif item['countryShortCode'] in provinceName:
+			result = str(item['confirmedCount'])
+			break
+		elif item['countryShortCode'].lower() in provinceName:
+			result = str(item['confirmedCount'])
+			break
+
+	if result == "nothing":
+		result = FindHkConfiermedCase(redis1,provinceName)
+		return result
+	else :
+		result = 'The confirmed case in "'+ provinceName +'" is "'+ result +'"'
+		return result
 
 # Return the number of confirmed case in Hong Kong
-def FindHkConfiermedCase(redis1):
-	global result
+def FindHkConfiermedCase(redis1, districtName):
+	result = "nothing"
 
 	content = json.loads(redis1.get('HK'))
 	district = list()
@@ -162,11 +174,20 @@ def FindHkConfiermedCase(redis1):
 	temp = Counter(district)
 	most_common = temp.most_common()
 
-	result = ""
 	for item in most_common:
-		result = result + item[0] + ":" + str(item[1]) + "\n"
-
-	return result
+		if item[0] in districtName:
+			result = str(item[1])
+		elif item[0].capitalize() in districtName:
+			result = str(item[1])
+		elif item[0].title() in districtName:
+			result = str(item[1])
+	
+	if result == "nothing":
+		result = "Please check whether it is wrong and type again"
+		return result
+	else :
+		result = 'The confirmed case in "'+ districtName +'" is "'+ result +'"'
+		return result
 
 if __name__ == "__main__":
     arg_parser = ArgumentParser(
