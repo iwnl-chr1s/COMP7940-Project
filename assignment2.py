@@ -6,6 +6,7 @@ import redis
 import sys, urllib, json
 import urllib.request
 
+from collections import Counter
 from argparse import ArgumentParser
 
 from flask import Flask, request, abort
@@ -17,8 +18,10 @@ from linebot.exceptions import (
 )
 
 from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage, ImageMessage, VideoMessage, 
-    FileMessage, StickerMessage, StickerSendMessage, ImageSendMessage
+    MessageEvent, LocationSendMessage,
+    TextMessage, TextSendMessage, 
+    ImageMessage, ImageSendMessage,
+    StickerMessage, StickerSendMessage
 )
 from linebot.utils import PY3
 
@@ -41,15 +44,21 @@ if channel_access_token is None:
 line_bot_api = LineBotApi(channel_access_token)
 parser = WebhookParser(channel_secret)
 
+global redis1, result
 
 @app.route("/callback", methods=['POST'])
 def callback():
+
+	# connect to the redis and get the data
+	#red = ConnectToRedis() 
 
     signature = request.headers['X-Line-Signature']
 
     # get request body as text
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
+
+    redis1 = ConnectToRedis()
 
     # parse webhook body
     try:
@@ -62,15 +71,11 @@ def callback():
         if not isinstance(event, MessageEvent):
             continue
         if isinstance(event.message, TextMessage):
-            handle_TextMessage(event)
+            handle_TextMessage(event,redis1)
         if isinstance(event.message, ImageMessage):
             handle_ImageMessage(event)
-        if isinstance(event.message, VideoMessage):
-            handle_VideoMessage(event)
-        if isinstance(event.message, FileMessage):
-            handle_FileMessage(event)
         if isinstance(event.message, StickerMessage):
-            handle_StickerMessage(event)
+            handle_StickerMessage(event,redis1)
 
         if not isinstance(event, MessageEvent):
             continue
@@ -80,65 +85,88 @@ def callback():
     return 'OK'
 
 # Handler function for Text Message
-def handle_TextMessage(event):
+def handle_TextMessage(event,redis1):
     print(event.message.text)
-
-    response = urllib.request.urlopen("http://api.tianapi.com/txapi/ncovabroad/index?key=4a16ea54595dc82b1fa1c4a483ae1866")
-    content = response.read()
-    con = json.loads(content)
-    conlist = con['newslist']
-    #get the json format data from the api
-    for item in conlist:
-        if item['provinceName'] == event.message.text:
-            result = item['confirmedCount']
-    output = str(result)
-    msg = 'The number of case confirmed in"' + event.message.text + '" : "'+ output +'" '
+   
+    msg = FindWorldConfirmedCase(redis1,event.message.text) 
     line_bot_api.reply_message(
         event.reply_token,
         TextSendMessage(msg)
     )
 
 # Handler function for Sticker Message
-def handle_StickerMessage(event):
-    line_bot_api.reply_message(
-        event.reply_token,
-        StickerSendMessage(
-            package_id=event.message.package_id,
-            sticker_id=event.message.sticker_id)
-    )
+def handle_StickerMessage(event,redis1):
+	#hkmsg = FindHkConfiermedCase(redis1)
+	line_bot_api.reply_message(
+		event.reply_token,
+		LocationSendMessage(
+			title='Sai Kung',
+			address='Hong Kong',
+			latitude=22.3166476,
+			longitude=114.2687672
+		)
+	)
+
 
 # Handler function for Image Message
 def handle_ImageMessage(event):
     line_bot_api.reply_message(
 	event.reply_token,
 	ImageSendMessage(
-        original_content_url="https://maps.googleapis.com/maps/api/staticmap?center=Hong+Kong%20&zoom13&size=600x300&maptype=roadmap%20&markers=color:blue%7Clabel:S%7cKellett%20View%20Town%20Houses,%2065%20Mount%20Kellett%20Road%20&markers=color:red%7Clabel:M%7cIsland%20Shangri-La%20&markers=color:green%7Clabel:E%7cEmerald%20Garden,%2086%20Pok%20Fu%20Lam%20Road%20&key=AIzaSyC4PPIxkv1lR7oQDqPNEVbhWwh_SlRAWPU",
-        preview_image_url="https://maps.googleapis.com/maps/api/staticmap?center=Hong+Kong%20&zoom13&size=600x300&maptype=roadmap%20&markers=color:blue%7Clabel:S%7cKellett%20View%20Town%20Houses,%2065%20Mount%20Kellett%20Road%20&markers=color:red%7Clabel:M%7cIsland%20Shangri-La%20&markers=color:green%7Clabel:E%7cEmerald%20Garden,%2086%20Pok%20Fu%20Lam%20Road%20&key=AIzaSyC4PPIxkv1lR7oQDqPNEVbhWwh_SlRAWPU"
-        )
+		original_content_url="https://cdn2.ettoday.net/images/3185/3185673.jpg",
+		preview_image_url="https://img.tt98.com/d/file/tt98/2019120917045534/5dedf5d1bc6b4.jpg"
+		)
     )
 
-# Handler function for Video Message
-def handle_VideoMessage(event):
-    line_bot_api.reply_message(
-	event.reply_token,
-	TextSendMessage(text="Nice video!")
-    )
+# Connect to the redis and save the data
+def ConnectToRedis():
+	HOST = "redis-15449.c228.us-central1-1.gce.cloud.redislabs.com"
+	PWD = "eqhpmBGXrr4tb3tkRACWDvffctJ0wBTf"
+	PORT = "15449"
+	Tian = "http://api.tianapi.com/txapi/ncovabroad/index?key=4a16ea54595dc82b1fa1c4a483ae1866"
+	GovHK = "https://api.data.gov.hk/v2/filter?q=%7B%22resource%22%3A%22http%3A%2F%2Fwww.chp.gov.hk%2Ffiles%2Fmisc%2Fbuilding_list_eng.csv%22%2C%22section%22%3A1%2C%22format%22%3A%22json%22%7D"
+	redis1 = redis.Redis(host = HOST, password = PWD, port = PORT)
 
-# Handler function for File Message
-def handle_FileMessage(event):
-    line_bot_api.reply_message(
-	event.reply_token,
-	TextSendMessage(text="Nice file!")
-    )
+	resOfTian = urllib.request.urlopen(Tian)
+	resOfGovhk = urllib.request.urlopen(GovHK)
 
-# Find out the confirmed count of country
-def FindconfirmedCount(conlist,provinceName):
-    output = ""
-    for item in conlist:
-        if item['provinceName'] == provinceName:
-            output = item['confirmedCount']
-            break
-    return output
+	conOfTian = resOfTian.read()
+	conOfGovhk = resOfGovhk.read()
+
+	redis1.set('World', conOfTian)
+	redis1.set('HK', conOfGovhk)
+
+	return redis1
+
+# Return the number of confirmed case based on the province name 
+def FindWorldConfirmedCase(redis1, provinceName):
+	global result
+	content = json.loads(redis1.get('World'))
+
+	for item in content['newslist']:
+		if item['provinceName'] == provinceName:
+			result = str(item['confirmedCount'])
+			break
+	result = provinceName + '的确诊人数: "'+ result +'"'
+	return result
+
+# Return the number of confirmed case in Hong Kong
+def FindHkConfiermedCase(redis1):
+	global result
+
+	content = json.loads(redis1.get('HK'))
+	district = list()
+
+	for item in content:
+		district.append(item['District'])
+	temp = Counter(district)
+	most_common = temp.most_common()
+
+	result = ""
+	for item in most_common:
+		result = result + item[0] + ":" + str(item[1]) + "\n"
+
+	return result
 
 if __name__ == "__main__":
     arg_parser = ArgumentParser(

@@ -5,15 +5,17 @@ from collections import Counter
 
 def main():
 	TempRedis = ConnectToRedis()
-	print(FindWorldConfirmedCase(TempRedis,"意大利"))
-	print(FindHkConfiermedCase(TempRedis))
+	#print(FindWorldConfirmedCase(TempRedis,"意大利"))
+	#print(FindHkConfiermedCase(TempRedis))
+	#print(message("意大利"))
+	FindLocation(TempRedis,"Sai Kung")
 
 def ConnectToRedis():
 	HOST = "redis-15449.c228.us-central1-1.gce.cloud.redislabs.com"
 	PWD = "eqhpmBGXrr4tb3tkRACWDvffctJ0wBTf"
 	PORT = "15449"
 	Tian = "http://api.tianapi.com/txapi/ncovabroad/index?key=4a16ea54595dc82b1fa1c4a483ae1866"
-	GovHK = "https://api.data.gov.hk/v2/filter?q=%7B%22resource%22%3A%22http%3A%2F%2Fwww.chp.gov.hk%2Ffiles%2Fmisc%2Fbuilding_list_chi.csv%22%2C%22section%22%3A1%2C%22format%22%3A%22json%22%7D"
+	GovHK = "https://api.data.gov.hk/v2/filter?q=%7B%22resource%22%3A%22http%3A%2F%2Fwww.chp.gov.hk%2Ffiles%2Fmisc%2Fbuilding_list_eng.csv%22%2C%22section%22%3A1%2C%22format%22%3A%22json%22%7D"
 	redis1 = redis.Redis(host = HOST, password = PWD, port = PORT)
 
 	resOfTian = urllib.request.urlopen(Tian)
@@ -26,6 +28,23 @@ def ConnectToRedis():
 	redis1.set('HK', conOfGovhk)
 
 	return redis1
+
+def FindLocation(redis, testDis):
+	content = json.loads(redis.get('HK'))
+	Geoencoding = "https://maps.googleapis.com/maps/api/geocode/json?key=AIzaSyBag1UucvzhXNXzacTDrbkT1XaMTMV-GTo&address="
+
+	address = ""
+	for item in content:
+		if item['District'] == testDis:
+			address = item['Building name']+ "," + item['District']
+
+	Geoencoding = Geoencoding + address.replace(" ", "+")
+	print(Geoencoding)
+
+	LocationRes = urllib.request.urlopen(Geoencoding)
+	LocationCon = json.loads(LocationRes.read())
+	print(LocationCon['results'][0]['geometry']['location'])
+
 
 # Return the number of confirmed case based on the province name 
 def FindWorldConfirmedCase(redis, provinceName):
@@ -44,7 +63,7 @@ def FindHkConfiermedCase(redis):
 	district = list()
 
 	for item in content:
-		district.append(item['地區'])
+		district.append(item['District'])
 	temp = Counter(district)
 	most_common = temp.most_common()
 
@@ -53,5 +72,17 @@ def FindHkConfiermedCase(redis):
 		result = result + item[0] + ":" + str(item[1]) + "\n"
 
 	return result
+
+def message(provinceName):
+	response = urllib.request.urlopen("http://api.tianapi.com/txapi/ncovabroad/index?key=4a16ea54595dc82b1fa1c4a483ae1866")
+	content = response.read()
+	con = json.loads(content)
+	conlist = con['newslist']
+	for item in conlist:
+		if item['provinceName'] == provinceName:
+			result = item['confirmedCount']
+	output = str(result)
+	return output
+
 
 main()
