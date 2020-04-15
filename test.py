@@ -1,14 +1,20 @@
 import sys, urllib, json
 import urllib.request
 import redis
+import threading
 from collections import Counter
+
+global msg 
 
 def main():
 	TempRedis = ConnectToRedis()
 	#print(FindWorldConfirmedCase(TempRedis,"意大利"))
 	#print(FindHkConfiermedCase(TempRedis))
 	#print(message("意大利"))
-	FindLocation(TempRedis,"Sai Kung")
+	#FindLocation(TempRedis,"Sai Kung")
+	msg = "1"
+	print(msg)
+	print(testing(TempRedis))
 
 def ConnectToRedis():
 	HOST = "redis-15449.c228.us-central1-1.gce.cloud.redislabs.com"
@@ -43,7 +49,7 @@ def FindLocation(redis, testDis):
 
 	LocationRes = urllib.request.urlopen(Geoencoding)
 	LocationCon = json.loads(LocationRes.read())
-	print(LocationCon['results'][0]['geometry']['location'])
+	print(LocationCon['results'][0]['geometry']['location']['lat'])
 
 
 # Return the number of confirmed case based on the province name 
@@ -55,6 +61,9 @@ def FindWorldConfirmedCase(redis, provinceName):
 			result = str(item['confirmedCount'])
 			break
 	result = provinceName + '的确诊人数: "'+ result +'"'
+
+	msg = result
+	print(msg)
 	return result
 
 # Return the number of confirmed case in Hong Kong
@@ -84,5 +93,15 @@ def message(provinceName):
 	output = str(result)
 	return output
 
+def testing(TempRedis):
+	try:
+		t1 = threading.Thread(target=FindWorldConfirmedCase,args=(TempRedis,"意大利",))
+		t2 = threading.Thread(target=FindWorldConfirmedCase,args=(TempRedis,"法国",))
+		t1.start()
+		t2.start()
+	except:
+		print("Error")
+
+	return msg
 
 main()

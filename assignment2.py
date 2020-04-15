@@ -5,6 +5,7 @@ import sys
 import redis
 import sys, urllib, json
 import urllib.request
+import threading
 
 from collections import Counter
 from argparse import ArgumentParser
@@ -49,15 +50,13 @@ global redis1
 @app.route("/callback", methods=['POST'])
 def callback():
 
-	# connect to the redis and get the data
-	#red = ConnectToRedis() 
-
     signature = request.headers['X-Line-Signature']
 
     # get request body as text
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
 
+	# connect to the redis and get the data
     redis1 = ConnectToRedis()
 
     # parse webhook body
@@ -87,12 +86,15 @@ def callback():
 # Handler function for Text Message
 def handle_TextMessage(event,redis1):
     print(event.message.text)
-   
-    msg = FindWorldConfirmedCase(redis1,event.message.text) 
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(msg)
-    )
+
+    #creating the thread for search the data from the redis
+    try:
+    	t1 = threading.Thread(target=FindWorldConfirmedCase,args=(redis1, event.message.text,event))
+    	t2 = threading.Thread(target=FindHkConfiermedCase,args=(redis1, event.message.text,event))
+    	t1.start()
+    	t2.start()
+    except:
+    	print("Errorrrrr")
 
 # Handler function for Sticker Message
 def handle_StickerMessage(event,redis1):
@@ -139,7 +141,7 @@ def ConnectToRedis():
 	return redis1
 
 # Return the number of confirmed case based on the province name 
-def FindWorldConfirmedCase(redis1, provinceName):
+def FindWorldConfirmedCase(redis1, provinceName, event):
 	#global result
 	content = json.loads(redis1.get('World'))
 	result = "nothing"
@@ -156,14 +158,21 @@ def FindWorldConfirmedCase(redis1, provinceName):
 			break
 
 	if result == "nothing":
-		result = FindHkConfiermedCase(redis1,provinceName)
-		return result
+		msg = "Please check whether it is wrong and type again"
+		return msg
 	else :
-		result = 'The confirmed case in "'+ provinceName +'" is "'+ result +'"'
-		return result
+		msg = 'The confirmed case in "'+ provinceName +'" is "'+ result +'"'
+
+		line_bot_api.reply_message(
+        	event.reply_token,
+        	TextSendMessage(msg)
+    	)
+		return msg
+
+
 
 # Return the number of confirmed case in Hong Kong
-def FindHkConfiermedCase(redis1, districtName):
+def FindHkConfiermedCase(redis1, districtName, event):
 	result = "nothing"
 
 	content = json.loads(redis1.get('HK'))
@@ -183,11 +192,15 @@ def FindHkConfiermedCase(redis1, districtName):
 			result = str(item[1])
 	
 	if result == "nothing":
-		result = "Please check whether it is wrong and type again"
-		return result
+		msg = "Please check whether it is wrong and type again"
+		return msg
 	else :
-		result = 'The confirmed case in "'+ districtName +'" is "'+ result +'"'
-		return result
+		msg = 'The confirmed case in "'+ districtName +'" is "'+ result +'"'
+		line_bot_api.reply_message(
+        	event.reply_token,
+        	TextSendMessage(msg)
+    	)
+		return msg
 
 if __name__ == "__main__":
     arg_parser = ArgumentParser(
